@@ -1,0 +1,1771 @@
+@startuml
+title One Line Picture
+
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam linetype ortho
+
+
+package "Domain" {
+    class GameSessionId <<Value Object>> {
+        - UUID value
+        + GameSessionId(UUID value)
+        + value() UUID 
+        + equals(Other other) boolean
+        + toString() String
+    }
+
+    class PlayerId <<Value Object>> {
+        - UUID value
+        + PlayerId(UUID value)
+        + value () UUID
+        + equals(Object other) boolean
+        + toString() String
+    }
+
+    class StrokeId <<Value Object>> {
+        - UUID value
+        + StrokeId(UUID value)
+        + value() UUID
+        + equals(Object other) boolean
+        + toString() String
+    }
+
+    class ConnectionId <<Value Object>> {
+        - UUID value
+        + ConnectionId(UUID value)
+        + value() UUID
+    }
+
+    class CanvasPoint <<Value Object>> {
+        - double x
+        - double y
+        + CanvasPoint(double x, double y)
+        + x() double
+        + y() double
+        + equals(Object other) boolean
+        + hashCode() int
+    }
+
+    class GameRules <<Value Object>> {
+        - int maximumPlayers
+        - int minimumPlayers
+        - int totalTurns
+        - Duration turnDuration
+        - double canvasWidth
+        - double canvasHeight
+        + GameRules(
+            int maximumPlayers,
+            int minimumPlayers,
+            int totalTurns,
+            Duration turnDuration,
+            double canvasWidth,
+            double canvasHeight
+          )
+        + maximumPlayers() int
+        + minimumPlayers() int
+        + totalTurns() int
+        + turnDuration() Duration
+        + canvasWidth() double
+        + canvasHeight() double
+        + contains(CanvasPoint point) boolean
+    }
+    note right of GameRules : turnDuration is part of a stretch goal 
+
+    enum GameStatus {
+        LOBBY
+        IN_PROGRESS
+        FINISHED
+    }
+
+    enum StrokeStatus {
+        ACTIVE
+        COMPLETED
+    }
+
+    class Player <<Entity>> {
+        - PlayerId id
+        - String displayName
+
+        + Player(PlayerId id, String displayName)
+        + id() PlayerId
+        + displayName() String
+        + equals(Object other) boolean
+    }
+
+    class Stroke <<Entity>> {
+        - StrokeId id
+        - PlayerId playerId
+        - List<CanvasPoint> points
+        - StrokeStatus status
+
+        + Stroke(
+            StrokeId id,
+            PlayerId playerId,
+            CanvasPoint startPoint
+          )
+
+        + id() StrokeId
+        + playerId() PlayerId
+        + points() List<CanvasPoint>
+        + status() StrokeStatus
+
+        ~ append(CanvasPoint point) void
+        ~ complete() void
+
+        + isCompleted() boolean
+    }
+
+     class TurnPolicy {
+        + firstPlayer(List<Player> players) PlayerId
+
+        + nextPlayer(
+            PlayerId currentPlayer,
+            List<Player> players,
+            int completedTurns,
+            int totalTurns
+          ) Optional<PlayerId>
+
+        + isGameComplete(
+            int completedTurns,
+            int totalTurns
+          ) boolean
+    }
+
+    class GameSession <<Aggregate Root>> {
+        - GameSessionId id
+        - GameRules rules
+        - List<Player> players
+        - List<Stroke> completedStrokes
+        - Stroke activeStroke
+        - TurnPolicy turnPolicy
+        - TurnState turnState
+        - GameStatus status
+        - List<DomainEvent> domainEvents
+
+        + GameSession(
+            GameSessionId id,
+            GameRules rules,
+            TurnPolicy turnPolicy
+          )
+
+        + id() GameSessionId
+        + rules() GameRules
+        + status() GameStatus
+        + players() List<Player>
+        + completedStrokes() List<Stroke>
+        + activeStroke() Optional<Stroke>
+        + activePlayer() Optional<Player>
+        + turnState() Optional<TurnState>
+
+        + join(Player player) void
+
+        + start(Instant now) void
+
+        + beginStroke(
+            PlayerId playerId,
+            CanvasPoint startPoint
+          ) void
+
+        + appendStrokePoint(
+            PlayerId playerId,
+            CanvasPoint point
+          ) void
+
+        + finishStroke(
+            PlayerId playerId,
+            Instant now
+          ) void
+
+        + expireTurn(Instant now) void
+
+        + isTurnExpired(Instant now) boolean
+
+        + domainEvents() List<DomainEvent>
+
+        + clearDomainEvents() void
+
+        - requireLobby() void
+        - requireInProgress() void
+        - requireActivePlayer(PlayerId playerId) void
+        - requireNoActiveStroke() void
+        - requireActiveStroke() Stroke
+        - requirePointInsideCanvas(CanvasPoint point) void
+        - advanceTurn(Instant now) void
+        - addDomainEvent(DomainEvent event) void
+    }
+
+    interface DomainEvent {
+        + occurredAt() Instant
+        + gameId() GameSessionId
+    }
+
+    class PlayerJoined <<Domain Event>> {
+        - GameSessionId gameId
+        - PlayerId playerId
+        - String displayName
+        - Instant occurredAt
+
+        + gameId() GameSessionId
+        + playerId() PlayerId
+        + displayName() String
+        + occurredAt() Instant
+    }
+
+    class GameStarted <<Domain Event>> {
+        - GameSessionId gameId
+        - PlayerId activePlayerId
+        - Instant occurredAt
+
+        + gameId() GameSessionId
+        + activePlayerId() PlayerId
+        + occurredAt() Instant
+    }
+
+    class StrokeStarted <<Domain Event>> {
+        - GameSessionId gameId
+        - StrokeId strokeId
+        - PlayerId playerId
+        - CanvasPoint point
+        - Instant occurredAt
+
+        + gameId() GameSessionId
+        + strokeId() StrokeId
+        + playerId() PlayerId
+        + point() CanvasPoint
+        + occurredAt() Instant
+    }
+
+    class StrokePointAdded <<Domain Event>> {
+        - GameSessionId gameId
+        - StrokeId strokeId
+        - PlayerId playerId
+        - CanvasPoint point
+        - Instant occurredAt
+
+        + gameId() GameSessionId
+        + strokeId() StrokeId
+        + playerId() PlayerId
+        + point() CanvasPoint
+        + occurredAt() Instant
+    }
+
+    class StrokeCompleted <<Domain Event>> {
+        - GameSessionId gameId
+        - StrokeId strokeId
+        - PlayerId playerId
+        - Instant occurredAt
+
+        + gameId() GameSessionId
+        + strokeId() StrokeId
+        + playerId() PlayerId
+        + occurredAt() Instant
+    }
+
+    class TurnChanged <<Domain Event>> {
+        - GameSessionId gameId
+        - PlayerId activePlayerId
+        - int completedTurns
+        - Instant occurredAt
+
+        + gameId() GameSessionId
+        + activePlayerId() PlayerId
+        + completedTurns() int
+        + occurredAt() Instant
+    }
+
+    class GameCompleted <<Domain Event>> {
+        - GameSessionId gameId
+        - int totalCompletedTurns
+        - Instant occurredAt
+
+        + gameId() GameSessionId
+        + totalCompletedTurns() int
+        + occurredAt() Instant
+    }
+
+    enum GameError {
+        GAME_ALREADY_STARTED
+        GAME_NOT_STARTED
+        GAME_FINISHED
+        GAME_FULL
+        NOT_ENOUGH_PLAYERS
+        PLAYER_ALREADY_JOINED
+        PLAYER_NOT_FOUND
+        NOT_ACTIVE_PLAYER
+        STROKE_ALREADY_ACTIVE
+        NO_ACTIVE_STROKE
+        POINT_OUT_OF_BOUNDS
+        INVALID_GAME_RULES
+        INVALID_PLAYER_NAME
+    }
+
+    class DomainException {
+        - GameError error
+        - String message
+
+        + DomainException(GameError error, String message)
+        + error() GameError
+        + getMessage() String
+    }
+
+    interface GameSessionFactory {
+        + create(GameRules rules) GameSession
+    }
+
+    class DefaultGameSessionFactory {
+        - TurnPolicyFactory turnPolicyFactory
+        - IdGenerator idGenerator
+
+        + DefaultGameSessionFactory(
+            TurnPolicyFactory turnPolicyFactory,
+            IdGenerator idGenerator
+          )
+
+        + create(GameRules rules) GameSession
+    }
+
+    interface PlayerFactory {
+        + create(String displayName) Player
+    }
+
+    class DefaultPlayerFactory {
+        - IdGenerator idGenerator
+
+        + DefaultPlayerFactory(IdGenerator idGenerator)
+        + create(String displayName) Player
+    }
+
+    interface StrokeFactory {
+        + create(
+            PlayerId playerId,
+            CanvasPoint startPoint
+          ) Stroke
+    }
+
+    class DefaultStrokeFactory {
+        - IdGenerator idGenerator
+
+        + DefaultStrokeFactory(IdGenerator idGenerator)
+
+        + create(
+            PlayerId playerId,
+            CanvasPoint startPoint
+          ) Stroke
+    }
+
+    interface IdGenerator {
+        + next() UUID
+    }
+
+    class UuidGenerator {
+        + next() UUID
+    }
+
+    interface TurnPolicyFactory {
+        + create(GameRules rules) TurnPolicy
+    }
+
+    class DefaultTurnPolicyFactory {
+        + create(GameRules rules) TurnPolicy
+    }    interface GameSessionFactory {
+        + create(GameRules rules) GameSession
+    }
+
+    class DefaultGameSessionFactory {
+        - TurnPolicyFactory turnPolicyFactory
+        - IdGenerator idGenerator
+
+        + DefaultGameSessionFactory(
+            TurnPolicyFactory turnPolicyFactory,
+            IdGenerator idGenerator
+          )
+
+        + create(GameRules rules) GameSession
+    }
+
+    interface PlayerFactory {
+        + create(String displayName) Player
+    }
+
+    class DefaultPlayerFactory {
+        - IdGenerator idGenerator
+
+        + DefaultPlayerFactory(IdGenerator idGenerator)
+        + create(String displayName) Player
+    }
+
+    interface StrokeFactory {
+        + create(
+            PlayerId playerId,
+            CanvasPoint startPoint
+          ) Stroke
+    }
+
+    class DefaultStrokeFactory {
+        - IdGenerator idGenerator
+
+        + DefaultStrokeFactory(IdGenerator idGenerator)
+
+        + create(
+            PlayerId playerId,
+            CanvasPoint startPoint
+          ) Stroke
+    }
+
+    interface IdGenerator {
+        + next() UUID
+    }
+
+    class UuidGenerator {
+        + next() UUID
+    }
+
+    interface TurnPolicyFactory {
+        + create(GameRules rules) TurnPolicy
+    }
+
+    class DefaultTurnPolicyFactory {
+        + create(GameRules rules) TurnPolicy
+    }
+
+    class GameRulesBuilder <<Builder>> {
+        - int maximumPlayers
+        - int minimumPlayers
+        - int totalTurns
+        - Duration turnDuration
+        - double canvasWidth
+        - double canvasHeight
+
+        + create() GameRulesBuilder
+
+        + maximumPlayers(int value) GameRulesBuilder
+        + minimumPlayers(int value) GameRulesBuilder
+        + totalTurns(int value) GameRulesBuilder
+        + turnDuration(Duration value) GameRulesBuilder
+
+        + canvasSize(
+            double width,
+            double height
+          ) GameRulesBuilder
+
+        + build() GameRules
+    }
+
+    GameSession "1" *-- "1" GameSessionId
+    GameSession "1" *-- "1" GameRules
+    GameSession "1" *-- "0..*" Player
+    GameSession "1" *-- "0..*" Stroke
+    GameSession "1" o-- "0..1" Stroke : activeStroke
+    GameSession "1" o-- "0..1" TurnState
+    GameSession --> GameStatus
+    GameSession --> TurnPolicy
+    GameSession --> DomainEvent
+    GameSession ..> DomainException
+
+    Player "1" *-- "1" PlayerId
+
+    Stroke "1" *-- "1" StrokeId
+    Stroke "1" --> "1" PlayerId
+    Stroke "1" *-- "1..*" CanvasPoint
+    Stroke --> StrokeStatus
+
+    TurnState --> PlayerId
+
+
+    DomainEvent <|.. PlayerJoined
+    DomainEvent <|.. GameStarted
+    DomainEvent <|.. StrokeStarted
+    DomainEvent <|.. StrokePointAdded
+    DomainEvent <|.. StrokeCompleted
+    DomainEvent <|.. TurnChanged
+    DomainEvent <|.. GameCompleted
+
+    GameSessionFactory <|.. DefaultGameSessionFactory
+    PlayerFactory <|.. DefaultPlayerFactory
+    StrokeFactory <|.. DefaultStrokeFactory
+    IdGenerator <|.. UuidGenerator
+    TurnPolicyFactory <|.. DefaultTurnPolicyFactory
+
+    DefaultGameSessionFactory --> IdGenerator
+    DefaultGameSessionFactory --> TurnPolicyFactory
+    DefaultGameSessionFactory --> GameSession
+
+    DefaultPlayerFactory --> IdGenerator
+    DefaultPlayerFactory --> Player
+
+    DefaultStrokeFactory --> IdGenerator
+    DefaultStrokeFactory --> Stroke
+
+    DefaultTurnPolicyFactory --> TurnPolicy
+
+    GameRulesBuilder --> GameRules
+}
+
+
+package "Application" {
+    interface GameCommand {
+        + gameId() GameSessionId
+    }
+
+    class JoinGameCommand <<Command>> {
+        - GameSessionId gameId
+        - String displayName
+
+        + gameId() GameSessionId
+        + displayName() String
+    }
+
+    class StartGameCommand <<Command>> {
+        - GameSessionId gameId
+        - PlayerId requestingPlayerId
+
+        + gameId() GameSessionId
+        + requestingPlayerId() PlayerId
+    }
+
+    class BeginStrokeCommand <<Command>> {
+        - GameSessionId gameId
+        - PlayerId playerId
+        - CanvasPoint point
+
+        + gameId() GameSessionId
+        + playerId() PlayerId
+        + point() CanvasPoint
+    }
+
+    class AppendStrokePointCommand <<Command>> {
+        - GameSessionId gameId
+        - PlayerId playerId
+        - CanvasPoint point
+
+        + gameId() GameSessionId
+        + playerId() PlayerId
+        + point() CanvasPoint
+    }
+
+    class FinishStrokeCommand <<Command>> {
+        - GameSessionId gameId
+        - PlayerId playerId
+
+        + gameId() GameSessionId
+        + playerId() PlayerId
+    }
+
+    class ExpireTurnCommand <<Command>> {
+        - GameSessionId gameId
+
+        + gameId() GameSessionId
+    }
+
+    class CommandResult<T> {
+        - boolean successful
+        - T value
+        - GameError error
+        - String message
+
+        + success(T value) CommandResult<T>
+        + failure(GameError error, String message) CommandResult<T>
+
+        + successful() boolean
+        + value() Optional<T>
+        + error() Optional<GameError>
+        + message() String
+    }
+
+    interface CommandHandler<C extends GameCommand> {
+        + handle(C command) CommandResult<?>
+    }
+
+    class JoinGameHandler {
+        - GameSessionRepository repository
+        - PlayerFactory playerFactory
+        - DomainEventPublisher eventPublisher
+
+        + JoinGameHandler(
+            GameSessionRepository repository,
+            PlayerFactory playerFactory,
+            DomainEventPublisher eventPublisher
+          )
+
+        + handle(
+            JoinGameCommand command
+          ) CommandResult<PlayerId>
+    }
+
+    class StartGameHandler {
+        - GameSessionRepository repository
+        - DomainEventPublisher eventPublisher
+        - Clock clock
+
+        + handle(
+            StartGameCommand command
+          ) CommandResult<Void>
+    }
+
+    class BeginStrokeHandler {
+        - GameSessionRepository repository
+        - DomainEventPublisher eventPublisher
+
+        + handle(
+            BeginStrokeCommand command
+          ) CommandResult<Void>
+    }
+
+    class AppendStrokePointHandler {
+        - GameSessionRepository repository
+        - DomainEventPublisher eventPublisher
+
+        + handle(
+            AppendStrokePointCommand command
+          ) CommandResult<Void>
+    }
+
+    class FinishStrokeHandler {
+        - GameSessionRepository repository
+        - DomainEventPublisher eventPublisher
+        - Clock clock
+
+        + handle(
+            FinishStrokeCommand command
+          ) CommandResult<Void>
+    }
+
+    class ExpireTurnHandler {
+        - GameSessionRepository repository
+        - DomainEventPublisher eventPublisher
+        - Clock clock
+
+        + handle(
+            ExpireTurnCommand command
+          ) CommandResult<Void>
+    }
+
+    interface CommandDispatcher {
+        + dispatch(GameCommand command) CommandResult<?>
+    }
+
+    class DefaultCommandDispatcher {
+        - Map<Class<?>, CommandHandler<?>> handlers
+
+        + register(
+            Class<?> commandType,
+            CommandHandler<?> handler
+          ) void
+
+        + dispatch(
+            GameCommand command
+          ) CommandResult<?>
+    }
+
+    interface GameSessionRepository {
+        + findById(
+            GameSessionId id
+          ) Optional<GameSession>
+
+        + save(
+            GameSession session
+          ) void
+
+        + remove(
+            GameSessionId id
+          ) void
+
+        + exists(
+            GameSessionId id
+          ) boolean
+    }
+
+    interface DomainEventPublisher {
+        + publish(
+            Collection<DomainEvent> events
+          ) void
+    }
+
+        class GetGameStateQuery {
+        - GameSessionId gameId
+        + gameId() GameSessionId
+    }
+
+    class GetReplayQuery {
+        - GameSessionId gameId
+        + gameId() GameSessionId
+    }
+
+    interface GameStateQueryService {
+        + getState(
+            GetGameStateQuery query
+          ) GameStateDto
+    }
+
+    class GameStateDto <<DTO>> {
+        - String gameId
+        - GameStatus status
+        - List<PlayerDto> players
+        - List<StrokeDto> strokes
+        - String activePlayerId
+        - int completedTurns
+        - GameRulesDto rules
+
+        + gameId() String
+        + status() GameStatus
+        + players() List<PlayerDto>
+        + strokes() List<StrokeDto>
+        + activePlayerId() String
+        + completedTurns() int
+        + rules() GameRulesDto
+    }
+
+    class PlayerDto <<DTO>> {
+        - String id
+        - String displayName
+
+        + id() String
+        + displayName() String
+    }
+
+    class StrokeDto <<DTO>> {
+        - String id
+        - String playerId
+        - List<CanvasPointDto> points
+
+        + id() String
+        + playerId() String
+        + points() List<CanvasPointDto>
+    }
+
+    class CanvasPointDto <<DTO>> {
+        - double x
+        - double y
+        + x() double
+        + y() double
+    }
+
+    class GameRulesDto <<DTO>> {
+        - int maximumPlayers
+        - int totalTurns
+        - long turnDurationMs
+        - double canvasWidth
+        - double canvasHeight
+    }
+
+    interface GameStateMapper {
+        + toDto(GameSession session) GameStateDto
+    }
+
+    class DefaultGameStateMapper {
+        + toDto(GameSession session) GameStateDto
+    }
+
+        interface ReplayService {
+        + createReplay(
+            GameSessionId gameId
+          ) Replay
+    }
+
+    class DefaultReplayService {
+        - GameSessionRepository repository
+
+        + DefaultReplayService(
+            GameSessionRepository repository
+          )
+
+        + createReplay(
+            GameSessionId gameId
+          ) Replay
+    }
+
+    class Replay {
+        - List<ReplayFrame> frames
+        - Duration totalDuration
+
+        + frames() List<ReplayFrame>
+        + totalDuration() Duration
+    }
+
+    class ReplayFrame {
+        - StrokeId strokeId
+        - PlayerId playerId
+        - CanvasPoint point
+        - Duration offset
+
+        + strokeId() StrokeId
+        + playerId() PlayerId
+        + point() CanvasPoint
+        + offset() Duration
+    }
+
+        interface ServerGateway {
+        + connect(String host, int port) void
+        + disconnect() void
+        + send(ClientMessage message) void
+        + isConnected() boolean
+    }
+
+    class ClientGameService {
+        - ServerGateway serverGateway
+        - ClientGameState state
+        - ClientMessageFactory messageFactory
+
+        + ClientGameService(
+            ServerGateway serverGateway,
+            ClientGameState state,
+            ClientMessageFactory messageFactory
+          )
+
+        + connect(
+            String host,
+            int port
+          ) void
+
+        + disconnect() void
+
+        + requestJoin(
+            String displayName
+          ) void
+
+        + requestGameStart() void
+
+        + requestStrokeStart(
+            CanvasPoint point
+          ) void
+
+        + sendStrokePoint(
+            CanvasPoint point
+          ) void
+
+        + requestStrokeEnd() void
+
+        + apply(
+            ServerMessage message
+          ) void
+
+        + state() ClientGameState
+    }
+
+        GameCommand <|.. JoinGameCommand
+    GameCommand <|.. StartGameCommand
+    GameCommand <|.. BeginStrokeCommand
+    GameCommand <|.. AppendStrokePointCommand
+    GameCommand <|.. FinishStrokeCommand
+    GameCommand <|.. ExpireTurnCommand
+
+    CommandHandler <|.. JoinGameHandler
+    CommandHandler <|.. StartGameHandler
+    CommandHandler <|.. BeginStrokeHandler
+    CommandHandler <|.. AppendStrokePointHandler
+    CommandHandler <|.. FinishStrokeHandler
+    CommandHandler <|.. ExpireTurnHandler
+
+    CommandDispatcher <|.. DefaultCommandDispatcher
+
+    JoinGameHandler --> GameSessionRepository
+    JoinGameHandler --> PlayerFactory
+    JoinGameHandler --> DomainEventPublisher
+
+    StartGameHandler --> GameSessionRepository
+    StartGameHandler --> DomainEventPublisher
+
+    BeginStrokeHandler --> GameSessionRepository
+    BeginStrokeHandler --> DomainEventPublisher
+
+    AppendStrokePointHandler --> GameSessionRepository
+    AppendStrokePointHandler --> DomainEventPublisher
+
+    FinishStrokeHandler --> GameSessionRepository
+    FinishStrokeHandler --> DomainEventPublisher
+
+    ExpireTurnHandler --> GameSessionRepository
+    ExpireTurnHandler --> DomainEventPublisher
+
+    DefaultCommandDispatcher --> CommandHandler
+
+    GameStateQueryService --> GameSessionRepository
+    GameStateMapper <|.. DefaultGameStateMapper
+    DefaultGameStateMapper --> GameSession
+
+    ReplayService <|.. DefaultReplayService
+    DefaultReplayService --> GameSessionRepository
+
+    Replay "1" *-- "0..*" ReplayFrame
+
+    ClientGameService --> ServerGateway
+}
+
+package "Client State" {
+        class ClientGameState {
+        - GameSessionId gameId
+        - GameStatus status
+        - Map<PlayerId, ClientPlayerState> players
+        - List<ClientStrokeState> strokes
+        - PlayerId activePlayerId
+        - int completedTurns
+        - GameRulesDto rules
+
+        + apply(ServerMessage message) void
+
+        + gameId() GameSessionId
+        + status() GameStatus
+        + players() Collection<ClientPlayerState>
+        + strokes() List<ClientStrokeState>
+        + activePlayerId() Optional<PlayerId>
+        + completedTurns() int
+        + rules() GameRulesDto
+
+        + isLocalPlayersTurn(
+            PlayerId localPlayerId
+          ) boolean
+    }
+
+    class ClientPlayerState {
+        - PlayerId id
+        - String displayName
+
+        + id() PlayerId
+        + displayName() String
+    }
+
+    class ClientStrokeState {
+        - StrokeId id
+        - PlayerId playerId
+        - List<CanvasPoint> points
+        - boolean completed
+
+        + id() StrokeId
+        + playerId() PlayerId
+        + points() List<CanvasPoint>
+        + completed() boolean
+
+        + append(CanvasPoint point) void
+        + complete() void
+    }
+
+    ClientGameState "1" *-- "*" ClientPlayerState
+    ClientGameState "1" *-- "*" ClientStrokeState
+}
+
+package "Messaging" {
+      enum ClientMessageType {
+        JOIN_GAME
+        START_GAME
+        BEGIN_STROKE
+        APPEND_STROKE_POINT
+        FINISH_STROKE
+    }
+
+    enum ServerMessageType {
+        JOIN_ACCEPTED
+        JOIN_REJECTED
+        PLAYER_JOINED
+        GAME_STARTED
+        STROKE_STARTED
+        STROKE_POINT_ADDED
+        STROKE_COMPLETED
+        TURN_CHANGED
+        GAME_COMPLETED
+        GAME_STATE
+        COMMAND_REJECTED
+        ERROR
+    }
+
+    interface ClientMessage {
+        + type() ClientMessageType
+        + gameId() String
+    }
+
+    class JoinGameRequest {
+        - String gameId
+        - String displayName
+
+        + type() ClientMessageType
+        + gameId() String
+        + displayName() String
+    }
+
+    class StartGameRequest {
+        - String gameId
+        - String playerId
+
+        + type() ClientMessageType
+        + gameId() String
+        + playerId() String
+    }
+
+    class BeginStrokeRequest {
+        - String gameId
+        - String playerId
+        - double x
+        - double y
+
+        + type() ClientMessageType
+        + gameId() String
+        + playerId() String
+        + x() double
+        + y() double
+    }
+
+    class AppendStrokePointRequest {
+        - String gameId
+        - String playerId
+        - double x
+        - double y
+
+        + type() ClientMessageType
+        + gameId() String
+        + playerId() String
+        + x() double
+        + y() double
+    }
+
+    class FinishStrokeRequest {
+        - String gameId
+        - String playerId
+
+        + type() ClientMessageType
+        + gameId() String
+        + playerId() String
+    }
+
+    interface ServerMessage {
+        + type() ServerMessageType
+        + gameId() String
+    }
+
+    class JoinAcceptedMessage {
+        - String gameId
+        - String playerId
+        - GameStateDto state
+    }
+
+    class JoinRejectedMessage {
+        - String gameId
+        - String reason
+    }
+
+    class PlayerJoinedMessage {
+        - String gameId
+        - PlayerDto player
+    }
+
+    class GameStartedMessage {
+        - String gameId
+        - String activePlayerId
+    }
+
+    class StrokeStartedMessage {
+        - String gameId
+        - String strokeId
+        - String playerId
+        - CanvasPointDto point
+    }
+
+    class StrokePointAddedMessage {
+        - String gameId
+        - String strokeId
+        - String playerId
+        - CanvasPointDto point
+    }
+
+    class StrokeCompletedMessage {
+        - String gameId
+        - String strokeId
+        - String playerId
+    }
+
+    class TurnChangedMessage {
+        - String gameId
+        - String activePlayerId
+        - int completedTurns
+    }
+
+    class GameCompletedMessage {
+        - String gameId
+        - int totalCompletedTurns
+    }
+
+    class GameStateMessage {
+        - String gameId
+        - GameStateDto state
+    }
+
+    class CommandRejectedMessage {
+        - String gameId
+        - String command
+        - String errorCode
+        - String message
+    }
+
+    class ErrorMessage {
+        - String gameId
+        - String message
+    }
+
+    interface ClientMessageFactory {
+        + joinGame(
+            String gameId,
+            String displayName
+          ) ClientMessage
+
+        + startGame(
+            String gameId,
+            String playerId
+          ) ClientMessage
+
+        + beginStroke(
+            String gameId,
+            String playerId,
+            CanvasPoint point
+          ) ClientMessage
+
+        + appendStrokePoint(
+            String gameId,
+            String playerId,
+            CanvasPoint point
+          ) ClientMessage
+
+        + finishStroke(
+            String gameId,
+            String playerId
+          ) ClientMessage
+    }
+
+    class DefaultClientMessageFactory {
+    }
+
+    interface ClientMessageMapper {
+        + toCommand(
+            ClientMessage message
+          ) GameCommand
+    }
+
+    class DefaultClientMessageMapper {
+    }
+
+    interface ServerMessageMapper {
+        + map(
+            DomainEvent event
+          ) ServerMessage
+
+        + rejection(
+            GameSessionId gameId,
+            GameError error,
+            String message
+          ) ServerMessage
+    }
+
+    class DefaultServerMessageMapper {
+    }
+
+        interface MessageCodec {
+        + decodeClientMessage(
+            String serialized
+          ) ClientMessage
+
+        + decodeServerMessage(
+            String serialized
+          ) ServerMessage
+
+        + encodeClientMessage(
+            ClientMessage message
+          ) String
+
+        + encodeServerMessage(
+            ServerMessage message
+          ) String
+    }
+
+    class JsonMessageCodec {
+        - ObjectMapper objectMapper
+
+        + decodeClientMessage(
+            String serialized
+          ) ClientMessage
+
+        + decodeServerMessage(
+            String serialized
+          ) ServerMessage
+
+        + encodeClientMessage(
+            ClientMessage message
+          ) String
+
+        + encodeServerMessage(
+            ServerMessage message
+          ) String
+    }
+
+    interface MessageValidator {
+        + validate(
+            ClientMessage message
+          ) ValidationResult
+    }
+
+    class DefaultMessageValidator {
+        + validate(
+            ClientMessage message
+          ) ValidationResult
+    }
+
+    class ValidationResult {
+        - boolean valid
+        - List<String> errors
+
+        + valid() boolean
+        + errors() List<String>
+    }
+
+    ClientMessage <|.. JoinGameRequest
+    ClientMessage <|.. StartGameRequest
+    ClientMessage <|.. BeginStrokeRequest
+    ClientMessage <|.. AppendStrokePointRequest
+    ClientMessage <|.. FinishStrokeRequest
+
+    ServerMessage <|.. JoinAcceptedMessage
+    ServerMessage <|.. JoinRejectedMessage
+    ServerMessage <|.. PlayerJoinedMessage
+    ServerMessage <|.. GameStartedMessage
+    ServerMessage <|.. StrokeStartedMessage
+    ServerMessage <|.. StrokePointAddedMessage
+    ServerMessage <|.. StrokeCompletedMessage
+    ServerMessage <|.. TurnChangedMessage
+    ServerMessage <|.. GameCompletedMessage
+    ServerMessage <|.. GameStateMessage
+    ServerMessage <|.. CommandRejectedMessage
+    ServerMessage <|.. ErrorMessage
+
+    ClientMessageFactory <|.. DefaultClientMessageFactory
+
+    ClientMessageMapper <|.. DefaultClientMessageMapper
+    ServerMessageMapper <|.. DefaultServerMessageMapper
+
+    MessageCodec <|.. JsonMessageCodec
+
+    MessageValidator <|.. DefaultMessageValidator
+}
+
+package "Core" {
+    class InMemoryGameSessionRepository {
+        - Map<GameSessionId, GameSession> sessions
+        - ReadWriteLock lock
+
+        + findById(
+            GameSessionId id
+          ) Optional<GameSession>
+
+        + save(
+            GameSession session
+          ) void
+
+        + remove(
+            GameSessionId id
+          ) void
+
+        + exists(
+            GameSessionId id
+          ) boolean
+    }
+
+    interface ClientConnection {
+        + id() ConnectionId
+        + send(String message) void
+        + close() void
+        + isOpen() boolean
+    }
+
+    class WebSocketClientConnection {
+        - ConnectionId id
+        - Session session
+
+        + id() ConnectionId
+        + send(String message) void
+        + close() void
+        + isOpen() boolean
+    }
+
+    interface ConnectionRegistry {
+        + register(
+            ConnectionId connectionId,
+            ClientConnection connection
+          ) void
+
+        + associatePlayer(
+            ConnectionId connectionId,
+            PlayerId playerId,
+            GameSessionId gameId
+          ) void
+
+        + unregister(
+            ConnectionId connectionId
+          ) void
+
+        + find(
+            ConnectionId connectionId
+          ) Optional<ClientConnection>
+
+        + findByPlayer(
+            PlayerId playerId
+          ) Optional<ClientConnection>
+
+        + allForGame(
+            GameSessionId gameId
+          ) Collection<ClientConnection>
+    }
+
+    class InMemoryConnectionRegistry {
+        - Map<ConnectionId, ClientConnection> connections
+        - Map<PlayerId, ConnectionId> playerConnections
+        - Map<GameSessionId, Set<ConnectionId>> gameConnections
+
+        + register(...) void
+        + associatePlayer(...) void
+        + unregister(...) void
+        + find(...) Optional<ClientConnection>
+        + findByPlayer(...) Optional<ClientConnection>
+        + allForGame(...) Collection<ClientConnection>
+    }
+
+    class WebSocketGameServer {
+        - int port
+        - MessageCodec codec
+        - MessageValidator validator
+        - ClientMessageMapper messageMapper
+        - CommandDispatcher dispatcher
+        - ConnectionRegistry connections
+        - EventLogger logger
+
+        + WebSocketGameServer(
+            int port,
+            MessageCodec codec,
+            MessageValidator validator,
+            ClientMessageMapper messageMapper,
+            CommandDispatcher dispatcher,
+            ConnectionRegistry connections,
+            EventLogger logger
+          )
+
+        + start() void
+        + stop() void
+
+        + onOpen(
+            ClientConnection connection
+          ) void
+
+        + onMessage(
+            ConnectionId connectionId,
+            String payload
+          ) void
+
+        + onClose(
+            ConnectionId connectionId
+          ) void
+
+        + onError(
+            ConnectionId connectionId,
+            Throwable error
+          ) void
+
+        - dispatch(
+            ConnectionId connectionId,
+            ClientMessage message
+          ) void
+    }
+
+    class WebSocketGameClient {
+        - URI serverUri
+        - MessageCodec codec
+        - Consumer<ServerMessage> messageConsumer
+        - EventLogger logger
+        - boolean connected
+
+        + connect(
+            String host,
+            int port
+          ) void
+
+        + disconnect() void
+
+        + send(
+            ClientMessage message
+          ) void
+
+        + isConnected() boolean
+
+        + onMessage(
+            String payload
+          ) void
+
+        + onClose() void
+
+        + onError(Throwable error) void
+    }
+
+    class WebSocketDomainEventPublisher {
+        - ConnectionRegistry connections
+        - ServerMessageMapper messageMapper
+        - MessageCodec codec
+        - EventLogger logger
+
+        + publish(
+            Collection<DomainEvent> events
+          ) void
+
+        - broadcast(
+            GameSessionId gameId,
+            ServerMessage message
+          ) void
+    }
+
+    class DefaultGameStateQueryService {
+        - GameSessionRepository repository
+        - GameStateMapper mapper
+
+        + getState(
+            GetGameStateQuery query
+          ) GameStateDto
+    }
+
+    class AppConfig {
+        - int serverPort
+        - String hostAddress
+        - String logLevel
+        - int maxMessageSize
+        - Duration shutdownTimeout
+
+        + serverPort() int
+        + hostAddress() String
+        + logLevel() String
+        + maxMessageSize() int
+        + shutdownTimeout() Duration
+    }
+
+    interface ConfigLoader {
+        + load() AppConfig
+    }
+
+    class EnvironmentConfigLoader {
+        + load() AppConfig
+    }
+
+    interface EventLogger {
+        + debug(
+            String event,
+            Map<String, Object> fields
+          ) void
+
+        + info(
+            String event,
+            Map<String, Object> fields
+          ) void
+
+        + warn(
+            String event,
+            Map<String, Object> fields
+          ) void
+
+        + error(
+            String event,
+            Throwable throwable,
+            Map<String, Object> fields
+          ) void
+    }
+
+    class StructuredEventLogger {
+        + debug(...) void
+        + info(...) void
+        + warn(...) void
+        + error(...) void
+    }
+
+    interface Clock {
+        + now() Instant
+    }
+
+    class SystemClock {
+        + now() Instant
+    }
+
+    GameSessionRepository <|.. InMemoryGameSessionRepository
+
+    ClientConnection <|.. WebSocketClientConnection
+
+    ConnectionRegistry <|.. InMemoryConnectionRegistry
+
+    ServerGateway <|.. WebSocketGameClient
+
+    DomainEventPublisher <|.. WebSocketDomainEventPublisher
+
+    GameStateQueryService <|.. DefaultGameStateQueryService
+
+    ConfigLoader <|.. EnvironmentConfigLoader
+
+    EventLogger <|.. StructuredEventLogger
+
+    Clock <|.. SystemClock
+
+    WebSocketGameServer --> MessageCodec
+    WebSocketGameServer --> MessageValidator
+    WebSocketGameServer --> ClientMessageMapper
+    WebSocketGameServer --> CommandDispatcher
+    WebSocketGameServer --> ConnectionRegistry
+    WebSocketGameServer --> EventLogger
+
+    WebSocketGameClient --> MessageCodec
+    WebSocketGameClient --> EventLogger
+
+    WebSocketDomainEventPublisher --> ConnectionRegistry
+    WebSocketDomainEventPublisher --> ServerMessageMapper
+    WebSocketDomainEventPublisher --> MessageCodec
+    WebSocketDomainEventPublisher --> EventLogger
+
+    DefaultGameStateQueryService --> GameSessionRepository
+    DefaultGameStateQueryService --> GameStateMapper
+
+    InMemoryConnectionRegistry --> ClientConnection
+}
+
+package "Display" {
+    class CanvasController {
+        - ClientGameService gameService
+        - PlayerId localPlayerId
+        - boolean drawing
+        - Integer activeTouchId
+
+        + CanvasController(
+            ClientGameService gameService,
+            PlayerId localPlayerId
+          )
+
+        + pointerPressed(
+            double x,
+            double y
+          ) void
+
+        + pointerMoved(
+            double x,
+            double y
+          ) void
+
+        + pointerReleased() void
+
+        + pointerExited() void
+
+        + touchStarted(
+            int touchId,
+            double x,
+            double y
+          ) void
+
+        + touchMoved(
+            int touchId,
+            double x,
+            double y
+          ) void
+
+        + touchEnded(
+            int touchId
+          ) void
+
+        - canDraw() boolean
+    }
+
+    class LobbyController {
+        - ClientGameService gameService
+
+        + joinGame(
+            String playerName
+          ) void
+
+        + startGame() void
+
+        + disconnect() void
+    }
+
+    class GameViewController {
+        - ClientGameService gameService
+        - GameViewModel viewModel
+        - ReplayController replayController
+
+        + refresh() void
+        + showGame() void
+        + showGameFinished() void
+        + startReplay() void
+    }
+
+    class ReplayController {
+        - Replay replay
+        - int frameIndex
+        - boolean running
+
+        + load(Replay replay) void
+        + start() void
+        + stop() void
+        + nextFrame() Optional<ReplayFrame>
+        + isFinished() boolean
+    }
+
+    class GameViewModel {
+        - String gameId
+        - String activePlayerName
+        - List<PlayerViewModel> players
+        - List<StrokeViewModel> strokes
+        - boolean localPlayersTurn
+        - boolean gameFinished
+
+        + updateFrom(
+            ClientGameState state,
+            PlayerId localPlayerId
+          ) void
+    }
+
+    class PlayerViewModel {
+        - String id
+        - String name
+        - boolean active
+    }
+
+    class StrokeViewModel {
+        - String id
+        - List<PointViewModel> points
+    }
+
+    class PointViewModel {
+        - double x
+        - double y
+    }
+
+    class LobbyViewModel {
+        - List<PlayerViewModel> players
+        - boolean canStart
+        - String connectionStatus
+    }
+
+    CanvasController --> ClientGameService
+    CanvasController --> ClientGameState
+
+    LobbyController --> ClientGameService
+
+    GameViewController --> ClientGameService
+    GameViewController --> GameViewModel
+    GameViewController --> ReplayController
+
+    GameViewModel "1" *-- "*" PlayerViewModel
+    GameViewModel "1" *-- "*" StrokeViewModel
+    StrokeViewModel "1" *-- "*" PointViewModel
+
+    ReplayController --> Replay
+}
+
+package "Bootstrap" {
+    class HostRuntime {
+        - WebSocketGameServer server
+        - WebSocketGameClient localClient
+        - ClientGameService localGameService
+
+        + start() void
+        + stop() void
+    }
+
+    class ClientRuntime {
+        - WebSocketGameClient client
+        - ClientGameService gameService
+
+        + start() void
+        + stop() void
+    }
+
+    class ApplicationFactory <<Abstract Factory / Composition Root>> {
+
+        + createHost(
+            AppConfig config
+          ) HostRuntime
+
+        + createClient(
+            AppConfig config
+          ) ClientRuntime
+
+        - createRepository()
+            GameSessionRepository
+
+        - createMessageCodec()
+            MessageCodec
+
+        - createCommandDispatcher(
+            GameSessionRepository repository,
+            DomainEventPublisher publisher,
+            Clock clock
+          ) CommandDispatcher
+
+        - createEventPublisher(
+            ConnectionRegistry registry,
+            MessageCodec codec
+          ) DomainEventPublisher
+    }
+
+    class HostApplication {
+        + main(String[] args) void
+    }
+
+    class ClientApplication {
+        + main(String[] args) void
+    }
+
+    HostApplication --> ConfigLoader
+    HostApplication --> ApplicationFactory
+    HostApplication --> HostRuntime
+
+    ClientApplication --> ConfigLoader
+    ClientApplication --> ApplicationFactory
+    ClientApplication --> ClientRuntime
+
+    ApplicationFactory --> GameSessionRepository
+    ApplicationFactory --> MessageCodec
+    ApplicationFactory --> CommandDispatcher
+    ApplicationFactory --> DomainEventPublisher
+    ApplicationFactory --> ConnectionRegistry
+    ApplicationFactory --> Clock
+    ApplicationFactory --> EventLogger
+
+    HostRuntime --> WebSocketGameServer
+    HostRuntime --> WebSocketGameClient
+    HostRuntime --> ClientGameService
+
+    ClientRuntime --> WebSocketGameClient
+    ClientRuntime --> ClientGameService
+}
+
+JoinGameCommand --> GameSessionId
+StartGameCommand --> GameSessionId
+StartGameCommand --> PlayerId
+BeginStrokeCommand --> GameSessionId
+BeginStrokeCommand --> PlayerId
+BeginStrokeCommand --> CanvasPoint
+AppendStrokePointCommand --> GameSessionId
+AppendStrokePointCommand --> PlayerId
+AppendStrokePointCommand --> CanvasPoint
+FinishStrokeCommand --> GameSessionId
+FinishStrokeCommand --> PlayerId
+ExpireTurnCommand --> GameSessionId
+
+GameSessionRepository --> GameSession
+
+DomainEventPublisher --> DomainEvent
+
+GameStateMapper --> GameSession
+GameStateMapper --> GameStateDto
+
+DefaultClientMessageMapper --> GameCommand
+DefaultClientMessageMapper --> ClientMessage
+
+DefaultServerMessageMapper --> DomainEvent
+DefaultServerMessageMapper --> ServerMessage
+
+ClientGameService --> ClientGameState
+ClientGameService --> ClientMessageFactory
+ClientGameService --> ServerMessage
+
+WebSocketGameServer ..> ClientMessage : receives
+WebSocketGameClient ..> ClientMessage : sends
+WebSocketGameClient ..> ServerMessage : receives
+WebSocketDomainEventPublisher ..> ServerMessage : broadcasts
+
+@enduml
