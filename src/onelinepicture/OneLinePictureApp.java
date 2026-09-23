@@ -58,7 +58,7 @@ import javax.swing.UIManager;
  * <ul>
  * <li>JOIN|id|name - a player asks to join (host answers with ROSTER)</li>
  * <li>ROSTER|id:name;id:name - host's player list, in turn order</li>
- * <li>START|totalTurns|turnMillis - host starts the game</li>
+ * <li>START|totalTurns|turnMillis|prompt - host starts the game</li>
  * <li>S|id|x|y, P|id|x|y, E|id - start, extend, end a line (x, y in 0..1)</li>
  * <li>SKIP|id|turnNumber - turn timed out without a line</li>
  * </ul>
@@ -89,6 +89,8 @@ public class OneLinePictureApp extends JFrame
         new JSpinner(new SpinnerNumberModel(15, 3, 120, 1));
     private final JSpinner rounds =
         new JSpinner(new SpinnerNumberModel(2, 1, 10, 1));
+    private final JTextField promptField = new JTextField(
+        "Draw something together", 14);
 
     // Lobby screen
     private final DefaultListModel<String> lobbyModel =
@@ -99,6 +101,7 @@ public class OneLinePictureApp extends JFrame
     // Game screen
     private final JLabel statusLabel = new JLabel(" ");
     private final JLabel timerLabel = new JLabel(" ");
+    private final JLabel promptLabel = new JLabel(" ");
     private final DefaultListModel<Player> turnModel =
         new DefaultListModel<Player>();
     private final JButton replayButton = new JButton("Watch replay");
@@ -115,6 +118,7 @@ public class OneLinePictureApp extends JFrame
     private GameServer server;
     private boolean isHost;
     private Game game = new Game();
+    private String drawingPrompt = "";
     private int skipSentForTurn = -1;
     private int expiredTurn = -1;
     private long expiredSince;
@@ -176,6 +180,7 @@ public class OneLinePictureApp extends JFrame
         addRow(panel, c, "Port", portField);
         addRow(panel, c, "Seconds per turn (host)", turnSeconds);
         addRow(panel, c, "Rounds (host)", rounds);
+        addRow(panel, c, "Drawing prompt (host)", promptField);
 
         JButton host = new JButton("Host a game");
         JButton join = new JButton("Join a game");
@@ -241,7 +246,10 @@ public class OneLinePictureApp extends JFrame
         top.setOpaque(false);
         statusLabel.setFont(statusLabel.getFont().deriveFont(Font.BOLD, 18f));
         timerLabel.setFont(timerLabel.getFont().deriveFont(Font.BOLD, 18f));
+        promptLabel.setHorizontalAlignment(JLabel.CENTER);
+        promptLabel.setFont(promptLabel.getFont().deriveFont(Font.BOLD, 16f));
         top.add(statusLabel, BorderLayout.WEST);
+        top.add(promptLabel, BorderLayout.CENTER);
         top.add(timerLabel, BorderLayout.EAST);
         panel.add(top, BorderLayout.NORTH);
 
@@ -363,7 +371,8 @@ public class OneLinePictureApp extends JFrame
         }
         int totalTurns = players * (Integer) rounds.getValue();
         long millis = 1000L * (Integer) turnSeconds.getValue();
-        client.send("START|" + totalTurns + "|" + millis);
+        client.send("START|" + totalTurns + "|" + millis + "|"
+            + cleanPrompt());
     }
 
     // ------------------------------------------------- incoming messages
@@ -388,7 +397,8 @@ public class OneLinePictureApp extends JFrame
                     break;
                 case "START":
                     onStart(Integer.parseInt(part[1]),
-                        Long.parseLong(part[2]));
+                        Long.parseLong(part[2]),
+                        part.length > 3 ? part[3] : "");
                     break;
                 case "S":
                     game.startStroke(part[1], point(part));
@@ -438,7 +448,7 @@ public class OneLinePictureApp extends JFrame
             ? "Start game" : "Need at least " + Game.MIN_PLAYERS + " players");
     }
 
-    private void onStart(int totalTurns, long turnMillis)
+    private void onStart(int totalTurns, long turnMillis, String prompt)
     {
         if (game.isStarted() || game.indexOfPlayer(myId) < 0)
         {
@@ -447,6 +457,7 @@ public class OneLinePictureApp extends JFrame
         game.setTotalTurns(totalTurns);
         game.setTurnTimeLimit(turnMillis);
         game.startGame();
+        drawingPrompt = prompt == null ? "" : prompt;
         turnModel.clear();
         for (Player player : game.getPlayers())
         {
@@ -572,6 +583,7 @@ public class OneLinePictureApp extends JFrame
     {
         if (!game.isStarted())
         {
+            promptLabel.setText(" ");
             return;
         }
         if (game.isFinished())
@@ -580,6 +592,8 @@ public class OneLinePictureApp extends JFrame
                 ? "Replaying your masterpiece..."
                 : "Finished! " + game.getStrokes().size() + " lines drawn.");
             timerLabel.setText(" ");
+            promptLabel.setText(drawingPrompt.isEmpty()
+                ? " " : "Prompt: " + drawingPrompt);
             canvas.setCursor(Cursor.getDefaultCursor());
             return;
         }
@@ -589,6 +603,8 @@ public class OneLinePictureApp extends JFrame
         statusLabel.setText(turnText + (isMyTurn()
             ? "Your turn: draw ONE line!"
             : current.getName() + " is drawing..."));
+        promptLabel.setText(drawingPrompt.isEmpty()
+            ? " " : "Prompt: " + drawingPrompt);
         statusLabel.setForeground(isMyTurn() ? colorFor(myId) : INK);
         long left = game.getTurnTimeRemaining();
         timerLabel.setText(left == Long.MAX_VALUE ? " "
@@ -662,6 +678,16 @@ public class OneLinePictureApp extends JFrame
             id = "room";
         }
         return id.length() > 32 ? id.substring(0, 32) : id;
+    }
+
+    private String cleanPrompt()
+    {
+        String prompt = promptField.getText().replace('|', ' ').trim();
+        if (prompt.isEmpty())
+        {
+            return "";
+        }
+        return prompt.length() > 80 ? prompt.substring(0, 80) : prompt;
     }
 
     private int readPort()

@@ -308,8 +308,13 @@ public class GameServer
         }
         if (game.isStarted())
         {
+            String prompt = parts.length > 3 ? parts[3].trim() : "";
+            if (prompt.length() > 80)
+            {
+                prompt = prompt.substring(0, 80);
+            }
             broadcast("START|" + game.getTotalTurns() + "|"
-                + turnMillis);
+                + turnMillis + "|" + prompt);
         }
         else
         {
