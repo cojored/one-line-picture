@@ -18,7 +18,7 @@ public class Stroke
      */
     public Stroke(String playerId)
     {
-        if (playerId == null || playerId.trim().isEmpty())
+        if (playerId == null || playerId.strip().isEmpty())
         {
             throw new IllegalArgumentException(
                 "Player ID cannot be null or blank.");

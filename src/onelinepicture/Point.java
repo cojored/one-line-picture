@@ -1,7 +1,7 @@
 package onelinepicture;
 
 /**
- * Represents one coordinate on the drawing canvas.
+ * Represents one coordinate (x, y) on the drawing canvas.
  */
 public class Point
 {
