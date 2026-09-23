@@ -10,7 +10,7 @@ import java.nio.charset.StandardCharsets;
 
 public class ClientConnection
 {
-    private final String playerId;
+    private String playerId;
     private final Socket socket;
     private final InputStream input;
     private final OutputStream output;
@@ -198,5 +198,15 @@ public class ClientConnection
     String getPlayerId()
     {
         return playerId;
+    }
+
+    void clearPlayerId()
+    {
+        playerId = "unknown";
+    }
+
+    void setPlayerId(String playerId)
+    {
+        this.playerId = playerId;
     }
 }
