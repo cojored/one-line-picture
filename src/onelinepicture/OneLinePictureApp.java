@@ -83,6 +83,7 @@ public class OneLinePictureApp extends JFrame
     // Setup screen
     private final JTextField nameField = new JTextField("Player", 14);
     private final JTextField hostField = new JTextField("localhost", 14);
+    private final JTextField gameIdField = new JTextField("room", 14);
     private final JTextField portField = new JTextField("8080", 6);
     private final JSpinner turnSeconds =
         new JSpinner(new SpinnerNumberModel(15, 3, 120, 1));
@@ -171,6 +172,7 @@ public class OneLinePictureApp extends JFrame
         c.anchor = GridBagConstraints.WEST;
         addRow(panel, c, "Your name", nameField);
         addRow(panel, c, "Host address", hostField);
+        addRow(panel, c, "Game ID", gameIdField);
         addRow(panel, c, "Port", portField);
         addRow(panel, c, "Seconds per turn (host)", turnSeconds);
         addRow(panel, c, "Rounds (host)", rounds);
@@ -178,7 +180,8 @@ public class OneLinePictureApp extends JFrame
         JButton host = new JButton("Host a game");
         JButton join = new JButton("Join a game");
         host.addActionListener(event -> hostGame());
-        join.addActionListener(event -> joinGame(hostField.getText().trim()));
+        join.addActionListener(event -> joinGame(hostField.getText().trim(),
+            cleanGameId()));
         JPanel buttons = new JPanel();
         buttons.setOpaque(false);
         buttons.add(host);
@@ -286,7 +289,7 @@ public class OneLinePictureApp extends JFrame
         }
         try
         {
-            server = new GameServer(new Game());
+            server = new GameServer(cleanGameId(), new Game());
             server.start(port);
         }
         catch (IllegalStateException exception)
@@ -297,13 +300,13 @@ public class OneLinePictureApp extends JFrame
             return;
         }
         isHost = true;
-        joinGame("localhost");
+        joinGame("localhost", cleanGameId());
     }
 
-    private void joinGame(String host)
+    private void joinGame(String host, String gameId)
     {
         int port = readPort();
-        if (port < 0 || host.isEmpty())
+        if (port < 0 || host.isEmpty() || gameId.isEmpty())
         {
             return;
         }
@@ -315,7 +318,8 @@ public class OneLinePictureApp extends JFrame
             if (client.isConnected())
             {
                 wait.stop();
-                client.send("JOIN|" + myId + "|" + cleanName());
+                client.send("JOIN|" + gameId + "|" + myId + "|"
+                    + cleanName());
                 showLobby();
             }
             else if (System.currentTimeMillis() > deadline)
@@ -340,7 +344,7 @@ public class OneLinePictureApp extends JFrame
         {
             lobbyInfo.setText("You are hosting. Others join with address "
                 + localAddress() + " and port " + portField.getText().trim()
-                + ".");
+                + ". Game ID: " + cleanGameId());
         }
         else
         {
@@ -352,7 +356,7 @@ public class OneLinePictureApp extends JFrame
 
     private void sendStart()
     {
-        int players = hostRoster.size();
+        int players = game.getPlayers().size();
         if (players < Game.MIN_PLAYERS)
         {
             return;
@@ -371,11 +375,16 @@ public class OneLinePictureApp extends JFrame
         {
             switch (part[0])
             {
-                case "JOIN":
-                    onJoin(part[1], part.length > 2 ? part[2] : "Player");
+                case "WELCOME":
                     break;
                 case "ROSTER":
                     onRoster(part.length > 1 ? part[1] : "");
+                    break;
+                case "REJECT":
+                    onReject(part.length > 1 ? part[1] : "Join rejected");
+                    break;
+                case "HOST":
+                    onHost(part.length > 1 ? part[1] : "");
                     break;
                 case "START":
                     onStart(Integer.parseInt(part[1]),
@@ -402,25 +411,6 @@ public class OneLinePictureApp extends JFrame
             // Ignore malformed messages (bad input case: invalid data).
         }
         afterUpdate();
-    }
-
-    private void onJoin(String id, String name)
-    {
-        if (!isHost || game.isStarted())
-        {
-            return;
-        }
-        if (!hostRoster.containsKey(id) && hostRoster.size() < 8)
-        {
-            hostRoster.put(id, name);
-        }
-        StringBuilder roster = new StringBuilder("ROSTER|");
-        for (Map.Entry<String, String> entry : hostRoster.entrySet())
-        {
-            roster.append(entry.getKey()).append(':')
-                .append(entry.getValue()).append(';');
-        }
-        client.send(roster.toString());
     }
 
     private void onRoster(String roster)
@@ -470,10 +460,29 @@ public class OneLinePictureApp extends JFrame
         Player current = game.getCurrentPlayer();
         if (current != null && current.getId().equals(id)
             && game.getCompletedTurns() == turnNumber
-            && game.getCurrentStroke() == null)
+            && !game.isFinished())
         {
             game.nextTurn();
         }
+    }
+
+    private void onReject(String reason)
+    {
+        client.disconnect();
+        if (server != null)
+        {
+            server.stop();
+            server = null;
+        }
+        isHost = false;
+        cards.show(root, "setup");
+        error("Could not join game: " + reason);
+    }
+
+    private void onHost(String id)
+    {
+        isHost = myId.equals(id);
+        startButton.setVisible(isHost);
     }
 
     private Point point(String[] part)
@@ -504,7 +513,7 @@ public class OneLinePictureApp extends JFrame
     {
         if (game.isStarted() && !game.isFinished())
         {
-            checkTurnTimer();
+            refreshStatus();
         }
         if (replay != null && !replay.isFinished())
         {
@@ -641,6 +650,17 @@ public class OneLinePictureApp extends JFrame
             name = "Player";
         }
         return name.length() > 20 ? name.substring(0, 20) : name;
+    }
+
+    private String cleanGameId()
+    {
+        String id = gameIdField.getText().replaceAll("[^A-Za-z0-9_-]", "")
+            .trim();
+        if (id.isEmpty())
+        {
+            id = "room";
+        }
+        return id.length() > 32 ? id.substring(0, 32) : id;
     }
 
     private int readPort()

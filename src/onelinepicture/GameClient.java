@@ -3,6 +3,7 @@ package onelinepicture;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
+import java.util.function.Consumer;
 import java.util.concurrent.CompletionStage;
 
 public class GameClient
@@ -11,6 +12,23 @@ public class GameClient
     private String hostAddress;
     private volatile boolean connected;
     private WebSocket socket;
+    private volatile Consumer<String> messageListener;
+    private StringBuilder incomingText = new StringBuilder();
+
+    public void setPlayerId(String playerId)
+    {
+        this.playerId = playerId;
+    }
+
+    public String getPlayerId()
+    {
+        return playerId;
+    }
+
+    public void setMessageListener(Consumer<String> messageListener)
+    {
+        this.messageListener = messageListener;
+    }
 
     public void connect(String host, int port)
     {
@@ -29,9 +47,11 @@ public class GameClient
                 public CompletionStage<?> onText(
                     WebSocket webSocket, CharSequence data, boolean last)
                 {
+                    incomingText.append(data);
                     if (last)
                     {
-                        receive(data.toString());
+                        receive(incomingText.toString());
+                        incomingText.setLength(0);
                     }
                     webSocket.request(1);
                     return null;
@@ -40,6 +60,14 @@ public class GameClient
                 public void onError(WebSocket webSocket, Throwable error)
                 {
                     connected = false;
+                }
+
+                public CompletionStage<?> onClose(
+                    WebSocket webSocket, int statusCode, String reason)
+                {
+                    connected = false;
+                    socket = null;
+                    return null;
                 }
             }).exceptionally(error ->
             {
@@ -68,6 +96,11 @@ public class GameClient
 
     public void receive(String message)
     {
+        Consumer<String> listener = messageListener;
+        if (listener != null && message != null)
+        {
+            listener.accept(message);
+        }
     }
 
     public boolean isConnected()
