@@ -32,8 +32,22 @@ public class GameClient
 
     public void connect(String host, int port)
     {
-        hostAddress = host;
-        URI address = URI.create("ws://" + host + ":" + port);
+        if (host == null || host.trim().isEmpty() || port < 1 || port > 65535)
+        {
+            connected = false;
+            return;
+        }
+        hostAddress = host.trim();
+        final URI address;
+        try
+        {
+            address = URI.create("ws://" + hostAddress + ":" + port);
+        }
+        catch (IllegalArgumentException exception)
+        {
+            connected = false;
+            return;
+        }
         HttpClient.newHttpClient().newWebSocketBuilder().buildAsync(address,
             new WebSocket.Listener()
             {
@@ -81,7 +95,13 @@ public class GameClient
         connected = false;
         if (socket != null)
         {
-            socket.sendClose(WebSocket.NORMAL_CLOSURE, "disconnect");
+            try
+            {
+                socket.sendClose(WebSocket.NORMAL_CLOSURE, "disconnect");
+            }
+            catch (RuntimeException ignored)
+            {
+            }
             socket = null;
         }
     }
@@ -90,7 +110,14 @@ public class GameClient
     {
         if (connected && socket != null && message != null)
         {
-            socket.sendText(message, true);
+            try
+            {
+                socket.sendText(message, true);
+            }
+            catch (RuntimeException exception)
+            {
+                connected = false;
+            }
         }
     }
 
@@ -99,7 +126,13 @@ public class GameClient
         Consumer<String> listener = messageListener;
         if (listener != null && message != null)
         {
-            listener.accept(message);
+            try
+            {
+                listener.accept(message);
+            }
+            catch (RuntimeException ignored)
+            {
+            }
         }
     }
 

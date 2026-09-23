@@ -73,14 +73,28 @@ public class GameServer
             try
             {
                 Socket socket = serverSocket.accept();
-                String key = readHandshake(socket.getInputStream());
-                writeHandshake(socket.getOutputStream(), key);
-                ClientConnection client = new ClientConnection("unknown", socket, this);
-                synchronized (clients)
+                try
                 {
-                    clients.add(client);
+                    String key = readHandshake(socket.getInputStream());
+                    writeHandshake(socket.getOutputStream(), key);
+                    ClientConnection client = new ClientConnection(
+                        "unknown", socket, this);
+                    synchronized (clients)
+                    {
+                        clients.add(client);
+                    }
+                    client.startReading();
                 }
-                client.startReading();
+                catch (IOException exception)
+                {
+                    try
+                    {
+                        socket.close();
+                    }
+                    catch (IOException ignored)
+                    {
+                    }
+                }
             }
             catch (IOException exception)
             {
@@ -100,6 +114,10 @@ public class GameServer
         while ((current = input.read()) >= 0)
         {
             request.append((char) current);
+            if (request.length() > 16384)
+            {
+                throw new IOException("WebSocket handshake is too large");
+            }
             if (previous == '\r' && current == '\n'
                 && request.toString().endsWith("\r\n\r\n"))
             {
@@ -155,6 +173,7 @@ public class GameServer
         catch (IOException ignored)
         {
         }
+        serverSocket = null;
         synchronized (clients)
         {
             for (ClientConnection client : clients)
@@ -268,8 +287,21 @@ public class GameServer
             reject(client, "Only the host can start the game");
             return;
         }
-        game.setTotalTurns(Integer.parseInt(parts[1]));
-        game.setTurnTimeLimit(Long.parseLong(parts[2]));
+        if (game.isStarted())
+        {
+            reject(client, "Game has already started");
+            return;
+        }
+        int turns = Integer.parseInt(parts[1]);
+        long turnMillis = Long.parseLong(parts[2]);
+        if (turns <= 0 || turns > 10000 || turnMillis < 0
+            || turnMillis > 86_400_000L)
+        {
+            reject(client, "Invalid game settings");
+            return;
+        }
+        game.setTotalTurns(turns);
+        game.setTurnTimeLimit(turnMillis);
         if (!game.isStarted())
         {
             game.startGame();
@@ -277,7 +309,11 @@ public class GameServer
         if (game.isStarted())
         {
             broadcast("START|" + game.getTotalTurns() + "|"
-                + parts[2]);
+                + turnMillis);
+        }
+        else
+        {
+            reject(client, "At least two players are required");
         }
     }
 
@@ -300,10 +336,16 @@ public class GameServer
         {
             return;
         }
+        boolean hadStroke = game.getCurrentStroke() != null;
+        int turnBefore = game.getCompletedTurns();
         if (game.addPoint(parts[1], new Point(
             Double.parseDouble(parts[2]), Double.parseDouble(parts[3]))))
         {
             broadcast(message(parts));
+        }
+        else if (hadStroke && game.getCompletedTurns() != turnBefore)
+        {
+            broadcast("E|" + parts[1]);
         }
     }
 
@@ -428,6 +470,11 @@ public class GameServer
     public String getGameId()
     {
         return gameId;
+    }
+
+    public int getPort()
+    {
+        return serverSocket == null ? -1 : serverSocket.getLocalPort();
     }
 
     public Game getGame()

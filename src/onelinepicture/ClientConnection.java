@@ -19,7 +19,7 @@ public class ClientConnection
 
     public ClientConnection(String playerId)
     {
-        this.playerId = playerId;
+        this.playerId = playerId == null ? "unknown" : playerId;
         this.socket = null;
         this.input = null;
         this.output = null;
@@ -29,7 +29,7 @@ public class ClientConnection
     ClientConnection(String playerId, Socket socket, GameServer server)
         throws IOException
     {
-        this.playerId = playerId;
+        this.playerId = playerId == null ? "unknown" : playerId;
         this.socket = socket;
         this.input = new BufferedInputStream(socket.getInputStream());
         this.output = new BufferedOutputStream(socket.getOutputStream());
@@ -117,7 +117,13 @@ public class ClientConnection
         int length = second & 0x7f;
         if (length == 126)
         {
-            length = (input.read() << 8) | input.read();
+            int high = input.read();
+            int low = input.read();
+            if (high < 0 || low < 0)
+            {
+                return null;
+            }
+            length = (high << 8) | low;
         }
         if (length == 127 || length > 65535)
         {
@@ -154,6 +160,10 @@ public class ClientConnection
 
     private void sendPong(byte[] payload) throws IOException
     {
+        if (payload.length > 125)
+        {
+            throw new IOException("Invalid WebSocket control frame");
+        }
         output.write(0x8A);
         output.write(payload.length);
         output.write(payload);

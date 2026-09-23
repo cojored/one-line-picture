@@ -47,9 +47,9 @@ public class Game
      */
     public Game(int maxPlayers, int totalTurns, long turnTimeLimit)
     {
-        this.maxPlayers = maxPlayers;
-        this.totalTurns = totalTurns;
-        this.turnTimeLimit = turnTimeLimit;
+        this.maxPlayers = Math.max(0, maxPlayers);
+        this.totalTurns = Math.max(0, totalTurns);
+        this.turnTimeLimit = Math.max(0, turnTimeLimit);
     }
 
     /**
@@ -59,9 +59,10 @@ public class Game
      * @return false if the game is full, already started, or the player is
      *     invalid or already joined
      */
-    public boolean addPlayer(Player player)
+    public synchronized boolean addPlayer(Player player)
     {
-        if (player == null || player.getId() == null || started)
+        if (player == null || isBlank(player.getId())
+            || isBlank(player.getName()) || started)
         {
             return false;
         }
@@ -81,7 +82,7 @@ public class Game
      * Locks the roster and begins the first turn. Does nothing if the game
      * already started or there are not enough players.
      */
-    public void startGame()
+    public synchronized void startGame()
     {
         if (started || players.size() < MIN_PLAYERS)
         {
@@ -107,7 +108,7 @@ public class Game
      * @return false if it is not their turn, a line is already active, or
      *     the point is off the canvas
      */
-    public boolean startStroke(String playerId, Point point)
+    public synchronized boolean startStroke(String playerId, Point point)
     {
         if (!isPlayersTurn(playerId) || currentStroke != null
             || !isOnCanvas(point))
@@ -128,7 +129,7 @@ public class Game
      * @return false if it is not their turn, there is no active line, or
      *     the point is off the canvas
      */
-    public boolean addPoint(String playerId, Point point)
+    public synchronized boolean addPoint(String playerId, Point point)
     {
         if (!isPlayersTurn(playerId) || currentStroke == null
             || point == null)
@@ -150,7 +151,7 @@ public class Game
      * @param playerId who is drawing
      * @return false if it is not their turn or there is no active line
      */
-    public boolean endStroke(String playerId)
+    public synchronized boolean endStroke(String playerId)
     {
         if (!isPlayersTurn(playerId) || currentStroke == null)
         {
@@ -164,7 +165,7 @@ public class Game
      * Advances to the next player and resets the turn timer. Any line in
      * progress is saved first. Ignored before the start or after the end.
      */
-    public void nextTurn()
+    public synchronized void nextTurn()
     {
         if (!started || finished)
         {
@@ -190,7 +191,7 @@ public class Game
      *
      * @return the current player, or null before the start or after the end
      */
-    public Player getCurrentPlayer()
+    public synchronized Player getCurrentPlayer()
     {
         if (!started || finished || players.isEmpty())
         {
@@ -204,7 +205,7 @@ public class Game
      *
      * @return true if time is up or there is no active turn
      */
-    public boolean isTurnExpired()
+    public synchronized boolean isTurnExpired()
     {
         if (!started || finished)
         {
@@ -218,7 +219,7 @@ public class Game
      *
      * @return true once the game is over
      */
-    public boolean isFinished()
+    public synchronized boolean isFinished()
     {
         return finished;
     }
@@ -228,7 +229,7 @@ public class Game
      *
      * @return a copy of the completed strokes
      */
-    public ArrayList<Stroke> getStrokes()
+    public synchronized ArrayList<Stroke> getStrokes()
     {
         return new ArrayList<Stroke>(strokes);
     }
@@ -240,7 +241,7 @@ public class Game
      *
      * @return the active stroke, or null if none
      */
-    public Stroke getCurrentStroke()
+    public synchronized Stroke getCurrentStroke()
     {
         return currentStroke;
     }
@@ -250,7 +251,7 @@ public class Game
      *
      * @return a copy of the player list
      */
-    public ArrayList<Player> getPlayers()
+    public synchronized ArrayList<Player> getPlayers()
     {
         return new ArrayList<Player>(players);
     }
@@ -260,7 +261,7 @@ public class Game
      *
      * @return true after startGame succeeds
      */
-    public boolean isStarted()
+    public synchronized boolean isStarted()
     {
         return started;
     }
@@ -270,7 +271,7 @@ public class Game
      *
      * @return completed turn count
      */
-    public int getCompletedTurns()
+    public synchronized int getCompletedTurns()
     {
         return completedTurns;
     }
@@ -280,7 +281,7 @@ public class Game
      *
      * @return total turns (0 until decided at start if left automatic)
      */
-    public int getTotalTurns()
+    public synchronized int getTotalTurns()
     {
         return totalTurns;
     }
@@ -290,11 +291,11 @@ public class Game
      *
      * @param totalTurns total turns (0 or less means one per player)
      */
-    public void setTotalTurns(int totalTurns)
+    public synchronized void setTotalTurns(int totalTurns)
     {
         if (!started)
         {
-            this.totalTurns = totalTurns;
+            this.totalTurns = Math.max(0, totalTurns);
         }
     }
 
@@ -303,11 +304,11 @@ public class Game
      *
      * @param turnTimeLimit milliseconds per turn (0 or less means no limit)
      */
-    public void setTurnTimeLimit(long turnTimeLimit)
+    public synchronized void setTurnTimeLimit(long turnTimeLimit)
     {
         if (!started)
         {
-            this.turnTimeLimit = turnTimeLimit;
+            this.turnTimeLimit = Math.max(0, turnTimeLimit);
         }
     }
 
@@ -316,7 +317,7 @@ public class Game
      *
      * @return time left, or Long.MAX_VALUE when there is no limit
      */
-    public long getTurnTimeRemaining()
+    public synchronized long getTurnTimeRemaining()
     {
         if (turnTimeLimit <= 0)
         {
@@ -332,8 +333,12 @@ public class Game
      * @param id the ID to look for
      * @return the player, or null if not in this game
      */
-    public Player findPlayer(String id)
+    public synchronized Player findPlayer(String id)
     {
+        if (id == null)
+        {
+            return null;
+        }
         for (Player player : players)
         {
             if (player.getId().equals(id))
@@ -350,8 +355,12 @@ public class Game
      * @param id the player's ID
      * @return their index, or -1 if not in this game
      */
-    public int indexOfPlayer(String id)
+    public synchronized int indexOfPlayer(String id)
     {
+        if (id == null)
+        {
+            return -1;
+        }
         for (int i = 0; i < players.size(); i++)
         {
             if (players.get(i).getId().equals(id))
@@ -372,5 +381,10 @@ public class Game
     {
         return point != null && point.getX() >= 0 && point.getX() <= 1
             && point.getY() >= 0 && point.getY() <= 1;
+    }
+
+    private boolean isBlank(String value)
+    {
+        return value == null || value.trim().isEmpty();
     }
 }
