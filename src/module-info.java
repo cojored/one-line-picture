@@ -6,4 +6,5 @@
  */
 module onelinepicture
 {
+    exports onelinepicture;
 }
