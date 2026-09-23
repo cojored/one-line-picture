@@ -513,6 +513,7 @@ public class OneLinePictureApp extends JFrame
     {
         if (game.isStarted() && !game.isFinished())
         {
+            checkTurnTimer();
             refreshStatus();
         }
         if (replay != null && !replay.isFinished())
